@@ -6,4 +6,5 @@
 
     <string name="paired_devices">Paired Devices</string>
     <string name="available_devices">Available Devices</string>
+    <string name="scan_devices">Scan Devices</string>
 </resources>

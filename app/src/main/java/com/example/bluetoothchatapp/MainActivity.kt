@@ -3,7 +3,10 @@ package com.example.bluetoothchatapp
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -18,15 +21,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.view.MenuProvider
 import com.example.bluetoothchatapp.databinding.ActivityMainBinding
+import kotlin.properties.Delegates
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private var isBtEnabled: Boolean = false
+    private var isBtEnabled = false
 
     private var activityResultLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+        ActivityResultContracts.StartActivityForResult()
+    ) { result: ActivityResult ->
         if (result.resultCode == RESULT_OK) {
             // There are no request codes
             val data = result.data
@@ -49,10 +54,31 @@ class MainActivity : AppCompatActivity() {
 
         }
 
+    private val br = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action
+
+            if (BluetoothAdapter.ACTION_STATE_CHANGED == action) {
+
+                when(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR )){
+                    BluetoothAdapter.STATE_ON -> isBtEnabled = true
+                    BluetoothAdapter.STATE_OFF -> isBtEnabled = false
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+
+        val bluetoothManager = getSystemService(BluetoothManager::class.java)
+        val bluetoothAdapter = bluetoothManager.adapter
+        if (bluetoothAdapter.isEnabled) {
+            isBtEnabled = true
+        }
 
         addMenuProvider(object : MenuProvider {
             override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -66,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                         true
                     }
                     R.id.menu_enable_bluetooth -> {
-                        enableBluetooth()
+                        enableBluetooth(bluetoothAdapter)
                         true
                     }
                     else -> {
@@ -77,10 +103,13 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    fun enableBluetooth() {
-        val bluetoothManager = getSystemService(BluetoothManager::class.java)
-        val bluetoothAdapter = bluetoothManager.adapter
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        registerReceiver(br, filter)
+    }
 
+    fun enableBluetooth(bluetoothAdapter: BluetoothAdapter?) {
         if (bluetoothAdapter == null) {
             Toast.makeText(this, "Device doesn't support Bluetooth", Toast.LENGTH_SHORT).show()
         }
@@ -92,59 +121,57 @@ class MainActivity : AppCompatActivity() {
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
                 requestPermissions()
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
                 return
             } else {
                 val enableBTIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
                 activityResultLauncher.launch(enableBTIntent)
+
+                if (bluetoothAdapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
+                    val discoveryIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                    discoveryIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+                    startActivity(discoveryIntent)
+                }
             }
         } else {
-            // Disable the bluetooth
-            bluetoothAdapter.disable()
+            // Disable  Bluetooth
+            bluetoothAdapter?.disable()
             isBtEnabled = false
             Toast.makeText(this, "BT disabled", Toast.LENGTH_SHORT).show()
 
         }
+
+
     }
 
-    fun checkLocationPermission(){
-    /*  **** Reduce Code ****
-    if BT is enabled; that's mean user already granted all permissions
-
-      if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ){
-            requestPermissions()
-            return
+    fun checkLocationPermission() {
+        if (isBtEnabled) {
+            val intent = Intent(this, DeviceListActivity::class.java)
+            startActivity(intent)
         } else {
-     */
-            if (isBtEnabled){
-                val intent = Intent(this, DeviceListActivity::class.java)
-                startActivity(intent)
-            } else {
-                Toast.makeText(this, "Switch On Your BT first", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Switch On Your BT first", Toast.LENGTH_SHORT).show()
 
-            }
         }
+    }
 
-    private fun requestPermissions(){
+    private fun requestPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            requestMultiplePermissions.launch(arrayOf(
-                Manifest.permission.BLUETOOTH,
-                Manifest.permission.BLUETOOTH_ADMIN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ))
+            requestMultiplePermissions.launch(
+                arrayOf(
+                    Manifest.permission.BLUETOOTH,
+                    Manifest.permission.BLUETOOTH_ADMIN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_ADVERTISE
+                )
+            )
         }
+    }
+
+    override fun onStop() {
+        unregisterReceiver(br)
+        super.onStop()
     }
 
 }
