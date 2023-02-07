@@ -16,6 +16,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.view.MenuProvider
@@ -73,6 +74,16 @@ class DeviceListActivity : AppCompatActivity() {
 
         binding.listPairedDevices.adapter = adapterPairedDevices
         binding.listAvailableDevices.adapter = adapterAvailableDevices
+
+        binding.listPairedDevices.setOnItemClickListener { adapterView, view, int, long ->
+            val info = (view as TextView).text.toString()
+            val address = info.substring(info.length -17)
+
+            val intent = Intent()
+            intent.putExtra(DEVICE_ADDRESS, address)
+            setResult(RESULT_OK, intent)
+            finish()
+        }
 
         val bluetoothManager = getSystemService(BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager.adapter
