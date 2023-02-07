@@ -15,6 +15,7 @@ import androidx.core.app.ActivityCompat
 import com.example.bluetoothchatapp.MainActivity.Companion.MESSAGE_DEVICE_NAME
 import com.example.bluetoothchatapp.MainActivity.Companion.MESSAGE_STATE_CHANGED
 import com.example.bluetoothchatapp.MainActivity.Companion.MESSAGE_TOAST
+import com.example.bluetoothchatapp.MainActivity.Companion.MESSAGE_WRITE
 import java.io.IOException
 import java.util.UUID
 
@@ -24,6 +25,8 @@ class ChatUtils(val context: Context, val handler: Handler) {
     private val APP_UUID: UUID = UUID.randomUUID()
     private var connectThread: ConnectThread? = null
     private var acceptThread: AcceptThread? = null
+    private var connectedThread: ConnectedThread? = null
+
     private var bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
     companion object {
@@ -49,6 +52,11 @@ class ChatUtils(val context: Context, val handler: Handler) {
             acceptThread = AcceptThread()
             acceptThread?.start()
         }
+
+        if (connectedThread != null) {
+            connectedThread?.cancel()
+            connectedThread = null
+        }
         setState(STATE_LISTEN)
     }
 
@@ -61,6 +69,10 @@ class ChatUtils(val context: Context, val handler: Handler) {
             acceptThread?.cancel()
             acceptThread?.start()
         }
+        if (connectedThread != null) {
+            connectedThread?.cancel()
+            connectedThread = null
+        }
         setState(STATE_NONE)
     }
 
@@ -72,7 +84,22 @@ class ChatUtils(val context: Context, val handler: Handler) {
         connectThread = ConnectThread(device)
         connectThread!!.start()
 
+        if (connectedThread != null) {
+            connectedThread?.cancel()
+            connectedThread = null
+        }
+
         setState(STATE_CONNECTED)
+    }
+    fun write(buffer: ByteArray){
+        var connThread : ConnectedThread
+        synchronized(this){
+            if (btState != STATE_CONNECTED){
+                return
+            }
+            connThread = connectedThread!!
+        }
+        connThread.write(buffer)
     }
 
     inner class AcceptThread : Thread() {
@@ -124,7 +151,6 @@ class ChatUtils(val context: Context, val handler: Handler) {
         }
 
     }
-
     inner class ConnectThread(private val device: BluetoothDevice) : Thread() {
 
         @SuppressLint("MissingPermission")
@@ -175,23 +201,71 @@ class ChatUtils(val context: Context, val handler: Handler) {
             handler.sendMessage(messageToInformBTNotConnect)
 
             this@ChatUtils.start()
+        }
+        @SuppressLint("MissingPermission")
+        private fun connected(device: BluetoothDevice) {
+            if (connectThread != null) {
+                connectThread?.cancel()
+                connectThread = null
+            }
+            if (connectedThread != null) {
+                connectedThread?.cancel()
+                connectedThread = null
+            }
 
+            connectedThread = ConnectedThread(socket)
+            connectedThread?.start()
+
+            val messageToMainActivity = handler.obtainMessage(MESSAGE_DEVICE_NAME)
+            val bundle = Bundle()
+            bundle.putString(DEVICE_NAME, device.name)
+            messageToMainActivity.data = bundle
+            handler.sendMessage(messageToMainActivity)
+
+            setState(STATE_CONNECTED)
+        }
+    }
+    inner class ConnectedThread(private val socket: BluetoothSocket) : Thread() {
+
+        val inputStream = socket.inputStream
+        val outPutStream = socket.outputStream
+
+        override fun run() {
+            val buffer = ByteArray(1024)
+            val bytes = inputStream.read(buffer)
+
+            try {
+                handler.obtainMessage(MainActivity.MESSAGE_READ, bytes, -1, buffer).sendToTarget()
+            }catch (e: IOException){
+               connectionLost()
+            }
+        }
+        fun write(buffer: ByteArray){
+            try {
+                outPutStream.write(buffer)
+                handler.obtainMessage(MESSAGE_WRITE, -1, -1, buffer)
+            } catch (e: IOException){
+                connectionLost()
+            }
+        }
+        fun cancel(){
+            try {
+                socket.close()
+            } catch (e: IOException){
+                Log.d("ConnectedThread: Run ", e.message.toString())
+            }
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun connected(device: BluetoothDevice) {
-        if (connectThread != null) {
-            connectThread?.cancel()
-            connectThread = null
-        }
-
-        val messageToMainActivity = handler.obtainMessage(MESSAGE_DEVICE_NAME)
+    private fun connectionLost() {
+        val message = handler.obtainMessage(MESSAGE_TOAST)
         val bundle = Bundle()
-        bundle.putString(DEVICE_NAME, device.name)
-        messageToMainActivity.data = bundle
-        handler.sendMessage(messageToMainActivity)
+        bundle.putString(TOAST, "Connection Lost....")
+        message.data = bundle
 
-        setState(STATE_CONNECTED)
+        handler.sendMessage(message)
+
+        this@ChatUtils.start()
     }
+
 }
