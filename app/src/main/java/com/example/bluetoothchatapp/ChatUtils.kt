@@ -22,7 +22,7 @@ import java.util.UUID
 
 class ChatUtils(val context: Context, val handler: Handler) {
 
-    private val APP_UUID: UUID = UUID.randomUUID()
+    private val APP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private var connectThread: ConnectThread? = null
     private var acceptThread: AcceptThread? = null
     private var connectedThread: ConnectedThread? = null

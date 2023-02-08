@@ -29,24 +29,40 @@ class DeviceListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDeviceListBinding
     private lateinit var adapterPairedDevices: ArrayAdapter<String>
     private lateinit var adapterAvailableDevices: ArrayAdapter<String>
+    private var availabledevices = arrayListOf<BluetoothDevice>()
 
-    private val bluetoothDeviceListener = object : BroadcastReceiver(){
+
+    private val bluetoothDeviceListener = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission", "SuspiciousIndentation")
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action
 
-            if (BluetoothDevice.ACTION_FOUND == action){
-                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+            if (BluetoothDevice.ACTION_FOUND == action) {
+                val device =
+                    intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
 
-                    if (device != null && device.bondState != BluetoothDevice.BOND_BONDED) {
-                        adapterAvailableDevices.add(device.name + "\n" + device.address)
+                if (device != null && device.bondState != BluetoothDevice.BOND_BONDED) {
+                    adapterAvailableDevices.add(device.name + "\n" + device.address)
+                    availabledevices.add(device)
                 }
-            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED == action){
+//                else if (device != null && device.bondState != BluetoothDevice.BOND_NONE){
+//                   device.createBond()
+//                }
+
+            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED == action) {
                 showProgressBar(false)
-                if (adapterAvailableDevices.count == 0){
-                    Toast.makeText(this@DeviceListActivity, "No New Devices Found",Toast.LENGTH_SHORT).show()
+                if (adapterAvailableDevices.count == 0) {
+                    Toast.makeText(
+                        this@DeviceListActivity,
+                        "No New Devices Found",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
-                    Toast.makeText(this@DeviceListActivity, "Click On the device & Start the Chat",Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@DeviceListActivity,
+                        "Click On the device & Start the Chat",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -59,26 +75,29 @@ class DeviceListActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         adapterPairedDevices = ArrayAdapter(this, R.layout.devices_list_items)
-        adapterAvailableDevices = ArrayAdapter(this, R.layout.devices_list_items)
+        adapterAvailableDevices = ArrayAdapter(this, R.layout.devices_list_items,)
 
         binding.listPairedDevices.adapter = adapterPairedDevices
         binding.listAvailableDevices.adapter = adapterAvailableDevices
 
         binding.listPairedDevices.setOnItemClickListener { adapterView, view, int, long ->
             val info = (view as TextView).text.toString()
-            val address = info.substring(info.length -17)
+            val address = info.substring(info.length - 17)
 
             val intent = Intent()
             intent.putExtra(DEVICE_ADDRESS, address)
             setResult(RESULT_OK, intent)
             finish()
         }
+        binding.listAvailableDevices.setOnItemClickListener{adapterView, view, int, long ->
+           availabledevices[int].createBond()
+            
+        }
 
         val bluetoothManager = getSystemService(BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager.adapter
 
-        val pairedDevices =
-            bluetoothAdapter.bondedDevices
+        val pairedDevices = bluetoothAdapter.bondedDevices
 
         if (pairedDevices != null && pairedDevices.size > 0) {
             for (device in pairedDevices) {
@@ -112,14 +131,16 @@ class DeviceListActivity : AppCompatActivity() {
         super.onStart()
         registerReceiver()
     }
-    private fun registerReceiver(){
+
+    private fun registerReceiver() {
         val intentFilter1 = IntentFilter(BluetoothDevice.EXTRA_DEVICE)
         registerReceiver(bluetoothDeviceListener, intentFilter1)
         val intentFilter2 = IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
-        registerReceiver(bluetoothDeviceListener,intentFilter2)
+        registerReceiver(bluetoothDeviceListener, intentFilter2)
         val intentFilter3 = IntentFilter(BluetoothDevice.ACTION_FOUND)
         registerReceiver(bluetoothDeviceListener, intentFilter3)
     }
+
     fun scanDevices(bluetoothAdapter: BluetoothAdapter) {
         showProgressBar(true)
         adapterAvailableDevices.clear()

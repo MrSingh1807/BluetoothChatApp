@@ -166,7 +166,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        requestPermissions()
         chatUtils = ChatUtils(this, handler = handler)
 
         // Set Adapter For Chatting Messages
