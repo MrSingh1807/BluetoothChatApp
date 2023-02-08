@@ -1,7 +1,9 @@
 package com.example.bluetoothchatapp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
@@ -29,29 +31,15 @@ class DeviceListActivity : AppCompatActivity() {
     private lateinit var adapterAvailableDevices: ArrayAdapter<String>
 
     private val bluetoothDeviceListener = object : BroadcastReceiver(){
+        @SuppressLint("MissingPermission", "SuspiciousIndentation")
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action
 
             if (BluetoothDevice.ACTION_FOUND == action){
                 val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
 
-                if (ActivityCompat.checkSelfPermission(
-                        this@DeviceListActivity,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return
-                } else {
                     if (device != null && device.bondState != BluetoothDevice.BOND_BONDED) {
                         adapterAvailableDevices.add(device.name + "\n" + device.address)
-                    }
                 }
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED == action){
                 showProgressBar(false)
@@ -64,6 +52,7 @@ class DeviceListActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDeviceListBinding.inflate(layoutInflater)
@@ -88,26 +77,14 @@ class DeviceListActivity : AppCompatActivity() {
         val bluetoothManager = getSystemService(BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager.adapter
 
-        val pairedDevices = if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return
-        } else {
+        val pairedDevices =
             bluetoothAdapter.bondedDevices
-        }
 
         if (pairedDevices != null && pairedDevices.size > 0) {
             for (device in pairedDevices) {
-                adapterPairedDevices.add(device.name + "\n" + device.address)
+                if (device.bluetoothClass.deviceClass == BluetoothClass.Device.PHONE_SMART) {
+                    adapterPairedDevices.add(device.name + "\n" + device.address)
+                }
             }
         }
 
@@ -140,6 +117,8 @@ class DeviceListActivity : AppCompatActivity() {
         registerReceiver(bluetoothDeviceListener, intentFilter1)
         val intentFilter2 = IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
         registerReceiver(bluetoothDeviceListener,intentFilter2)
+        val intentFilter3 = IntentFilter(BluetoothDevice.ACTION_FOUND)
+        registerReceiver(bluetoothDeviceListener, intentFilter3)
     }
     fun scanDevices(bluetoothAdapter: BluetoothAdapter) {
         showProgressBar(true)

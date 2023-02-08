@@ -1,6 +1,7 @@
 package com.example.bluetoothchatapp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
@@ -80,14 +81,21 @@ class MainActivity : AppCompatActivity() {
 
     /***********   Broadcast Receiver   **********/
     private val br = object : BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action
 
             if (BluetoothAdapter.ACTION_STATE_CHANGED == action) {
 
                 when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
-                    BluetoothAdapter.STATE_ON -> isBtEnabled = true
-                    BluetoothAdapter.STATE_OFF -> isBtEnabled = false
+                    BluetoothAdapter.STATE_ON -> {
+                        isBtEnabled = true
+                        bluetoothAdapter?.startDiscovery()
+                    }
+                    BluetoothAdapter.STATE_OFF -> {
+                        isBtEnabled = false
+                        bluetoothAdapter?.cancelDiscovery()
+                    }
                 }
             }
         }
@@ -124,7 +132,7 @@ class MainActivity : AppCompatActivity() {
             }
             MESSAGE_READ -> {
                 val buffer = message.obj as ByteArray
-                val inputBuffer = String(buffer, 0 , message.arg1)
+                val inputBuffer = String(buffer, 0, message.arg1)
                 adapterMainChat.add("$connectedDeviceName: $inputBuffer")
             }
             MESSAGE_WRITE -> {
@@ -158,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        requestPermissions()
         chatUtils = ChatUtils(this, handler = handler)
 
         // Set Adapter For Chatting Messages
@@ -212,21 +221,32 @@ class MainActivity : AppCompatActivity() {
 
     fun enableBluetooth() {
         // Manage BT state here, whether it is enable or disable
+
         if (bluetoothAdapter == null) {
             Toast.makeText(this, "Device doesn't support Bluetooth", Toast.LENGTH_SHORT).show()
         }
 
-        if (bluetoothAdapter?.isEnabled == false) {
+        if (!bluetoothAdapter!!.isEnabled) {
+
             if (ActivityCompat.checkSelfPermission(
                     this,
-                    Manifest.permission.BLUETOOTH_CONNECT
+                    Manifest.permission.BLUETOOTH_SCAN
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
                 requestPermissions()
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
                 return
             } else {
+
                 val enableBTIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
                 enableOrDisableBTLauncher.launch(enableBTIntent)
+
 
                 if (bluetoothAdapter?.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
                     val discoveryIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
@@ -237,12 +257,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             // Disable  Bluetooth
             bluetoothAdapter?.disable()
-            isBtEnabled = false
             Toast.makeText(this, "BT disabled", Toast.LENGTH_SHORT).show()
 
         }
-
-
     }
 
     fun detailsListActivityLaunchIntent() {
