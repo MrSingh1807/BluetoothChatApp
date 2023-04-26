@@ -86,7 +86,6 @@ class MainActivity : AppCompatActivity() {
             val action = intent?.action
 
             if (BluetoothAdapter.ACTION_STATE_CHANGED == action) {
-
                 when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                     BluetoothAdapter.STATE_ON -> {
                         isBtEnabled = true
